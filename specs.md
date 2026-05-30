@@ -386,6 +386,9 @@ src/
 
 n8n is intentionally kept ultra-lean — all message aggregation, formatting, and prompt building happens in the Node.js service. n8n just orchestrates the flow.
 
+- **n8n version**: 2.21.7
+- **Importable workflow**: `n8n/whatsapp-daily-summary.json` (gitignored — contains environment-specific config)
+
 ```
 ┌─────────┐    ┌───────────────┐    ┌──────────────┐    ┌──────────────┐
 │  Cron   │───▶│ HTTP Request  │───▶│ Loop over    │───▶│ HTTP Request │
@@ -409,18 +412,44 @@ n8n is intentionally kept ultra-lean — all message aggregation, formatting, an
                                                         └──────────────┘
 ```
 
-**Nodes:**
-1. **Cron Trigger** — Fires at configured time. Also supports manual trigger.
-2. **HTTP Request** — `GET /api/summary-input` — fetches pre-built LLM prompts for all enabled groups (Node.js handles all the message aggregation, formatting, and prompt assembly).
-3. **Loop / Split** — Iterates over each group in the response.
-4. **HTTP Request (OpenRouter)** — Forwards the `llmPrompt` field directly to OpenRouter. Uses the `model` field from the response. No code node needed — just pass through.
-5. **Wait Node (Approval)** — Sends email with the generated summary + approve/reject webhook links. Pauses workflow.
-6. **On Approve** — HTTP Request to `POST /api/send` with the summary text.
-7. **On Reject** — Takes feedback text, appends to the original `llmPrompt`, re-calls OpenRouter (loops back to step 4).
+**Environment:**
+- **n8n base URL**: `<your-n8n-base-url>`
+- **WhatsApp service URL**: `<whatsapp-service-ip>:3000`
+- **Schedule**: Daily at midnight (00:00) IST (`Asia/Kolkata`)
+- **Approval email**: `<your-email>`
 
-**n8n Credentials needed:**
-- OpenRouter API key (stored in n8n credentials)
-- SMTP / email credentials (for approval emails)
+**Nodes:**
+1. **Schedule Trigger** — Fires daily at 00:00 IST. Workflow can also be triggered manually via n8n UI.
+2. **HTTP Request (Fetch Summary Input)** — `GET <whatsapp-service-url>/api/summary-input` — fetches pre-built LLM prompts for all enabled groups. Node.js handles all message aggregation, formatting, and prompt assembly.
+3. **Split In Batches** — Iterates over each group in `{{ $json.groups }}`.
+4. **HTTP Request (OpenRouter)** — `POST https://openrouter.ai/api/v1/chat/completions` — Forwards the `llmPrompt` as the user message content. Uses the `model` field from the response. Request body:
+   ```json
+   {
+     "model": "{{ $json.model }}",
+     "messages": [
+       { "role": "user", "content": "{{ $json.llmPrompt }}" }
+     ]
+   }
+   ```
+   Auth: Bearer token from n8n OpenRouter credential. Response contains the summary in `choices[0].message.content`.
+5. **Send Email (Approval)** — Sends email to the configured approval address with the generated summary in the body, plus two links:
+   - ✅ Approve: `<n8n-base-url>/webhook/<execution-id>/approve`
+   - ❌ Reject (opens a form to provide feedback)
+6. **Wait Node** — Pauses execution until the approve/reject webhook is hit.
+7. **IF Node (Check Decision)** — Routes to approve or reject branch.
+8. **On Approve → HTTP Request (Send)** — `POST <whatsapp-service-url>/api/send` with `{ "groupId": "...", "message": "<summary>" }`.
+9. **On Reject → Code Node (Append Feedback)** — Appends the reviewer's feedback to the original `llmPrompt`: `"Previous summary was rejected. Feedback: <feedback>. Please regenerate."` Then loops back to step 4.
+
+**n8n Credentials to configure:**
+- **Header Auth (OpenRouter)** — Name: `OpenRouter`, Header Name: `Authorization`, Header Value: `Bearer <your-openrouter-api-key>`
+- **SMTP** — For sending approval emails (configure in n8n Settings > Credentials)
+
+**Setup instructions:**
+1. Import `n8n/whatsapp-daily-summary.json` via n8n UI (Workflows > Import).
+2. Create the OpenRouter Header Auth credential in n8n.
+3. Configure SMTP credentials for email.
+4. Update the WhatsApp service URL and approval email in the workflow nodes.
+5. Activate the workflow.
 
 ### Deployment
 

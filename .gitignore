@@ -1,0 +1,11 @@
+node_modules/
+dist/
+session/
+data/
+logs/
+config.yaml
+.env
+.DS_Store
+
+# n8n workflow (contains environment-specific URLs and emails)
+n8n/
