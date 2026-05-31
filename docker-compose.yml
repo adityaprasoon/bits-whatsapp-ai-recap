@@ -1,0 +1,12 @@
+services:
+  whatsapp-recap:
+    image: ghcr.io/adityaprasoon/bits-whatsapp-ai-recap:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./session:/app/session
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config.yaml:/app/config.yaml:ro
+      - ./prompts:/app/prompts:ro
+    restart: unless-stopped

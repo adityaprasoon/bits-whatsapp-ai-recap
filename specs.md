@@ -453,34 +453,75 @@ n8n is intentionally kept ultra-lean — all message aggregation, formatting, an
 
 ### Deployment
 
-Target environment: **Proxmox** (bare-metal hypervisor). Runs as a Docker container inside a Proxmox VM or LXC.
+Target environment: **Proxmox** (bare-metal hypervisor). Runs as a Docker container inside a Proxmox LXC.
 
-```dockerfile
-# Dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --production
-COPY . .
-RUN npm run build
-EXPOSE 3000
-VOLUME ["/app/session", "/app/data", "/app/logs"]
-CMD ["node", "dist/index.js"]
+**CI/CD Pipeline:**
+- On git tag push (`v*`), GitHub Actions builds the Docker image and pushes to GitHub Container Registry (`ghcr.io`).
+- On the Proxmox LXC, `docker pull` + `docker compose up -d` to deploy/update.
+
+**Deployment steps:**
+
+#### 1. Create a Proxmox LXC
+
+In the Proxmox web UI:
+- Create a new LXC container (Debian 12 / Ubuntu 22.04 template)
+- 1 CPU, 512MB RAM, 8GB disk is sufficient
+- Enable nesting (required for Docker): Options → Features → check `nesting`
+- Note the IP address assigned
+
+#### 2. Install Docker in the LXC
+
+```bash
+ssh root@<lxc-ip>
+apt update && apt install -y ca-certificates curl gnupg
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" | tee /etc/apt/sources.list.d/docker.list
+apt update && apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 ```
 
-```yaml
-# docker-compose.yml
-services:
-  whatsapp-service:
-    build: .
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./session:/app/session     # WhatsApp session persistence
-      - ./data:/app/data           # SQLite database
-      - ./logs:/app/logs           # Log files
-      - ./config.yaml:/app/config.yaml
-    restart: unless-stopped
+#### 3. Set up the app directory
+
+```bash
+mkdir -p /opt/whatsapp-recap && cd /opt/whatsapp-recap
+
+# Download docker-compose.yml and config
+curl -O https://raw.githubusercontent.com/adityaprasoon/bits-whatsapp-ai-recap/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/adityaprasoon/bits-whatsapp-ai-recap/main/config.example.yaml
+mkdir -p prompts
+curl -o prompts/summary.txt https://raw.githubusercontent.com/adityaprasoon/bits-whatsapp-ai-recap/main/prompts/summary.txt
+cp config.example.yaml config.yaml
+# Edit config.yaml with your group JIDs (after first run)
+```
+
+#### 4. First run — scan QR code
+
+```bash
+docker compose up     # foreground, so you can see the QR code
+# Scan the QR code with WhatsApp mobile app
+# Once connected, Ctrl+C and restart in background
+docker compose up -d
+```
+
+#### 5. Configure groups
+
+```bash
+# Discover your group JIDs
+curl http://localhost:3000/api/groups
+
+# Edit config.yaml, add groups
+nano config.yaml
+
+# Restart to pick up config changes
+docker compose restart
+```
+
+#### 6. Updates
+
+```bash
+cd /opt/whatsapp-recap
+docker compose pull
+docker compose up -d
 ```
 
 ### Error Handling

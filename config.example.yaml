@@ -1,0 +1,21 @@
+whatsapp:
+  session_data_path: "./session"
+
+# Get group JIDs by calling GET /api/groups after first connection
+groups: []
+  # - id: "120363XXXXX@g.us"
+  #   name: "My Group"
+  #   enabled: true
+
+summary:
+  default_model: "google/gemini-flash-1.5"
+  fallback_model: "openai/gpt-4o-mini"
+  token_strategy: "single-pass"
+  chunk_size: 100
+  prompt_template_path: "./prompts/summary.txt"
+
+server:
+  port: 3000
+  log_level: "info"
+  log_file: "./logs/app.log"
+  data_dir: "./data"
