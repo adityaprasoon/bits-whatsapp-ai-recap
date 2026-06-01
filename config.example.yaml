@@ -8,7 +8,7 @@ groups: []
   #   enabled: true
 
 summary:
-  default_model: "google/gemini-flash-1.5"
+  default_model: "deepseek/deepseek-v4-flash"
   fallback_model: "openai/gpt-4o-mini"
   token_strategy: "single-pass"
   chunk_size: 100

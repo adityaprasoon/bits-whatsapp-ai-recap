@@ -50,7 +50,7 @@ export function loadConfig(configPath?: string): AppConfig {
       enabled: g.enabled !== false,
     })),
     summary: {
-      defaultModel: parsed.summary?.default_model || 'google/gemini-flash-1.5',
+      defaultModel: parsed.summary?.default_model || 'deepseek/deepseek-v4-flash',
       fallbackModel: parsed.summary?.fallback_model || 'openai/gpt-4o-mini',
       tokenStrategy: parsed.summary?.token_strategy || 'single-pass',
       chunkSize: parsed.summary?.chunk_size || 100,
