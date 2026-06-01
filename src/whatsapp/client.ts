@@ -71,10 +71,23 @@ export async function createWhatsAppClient(
   });
 
   const sendMessage = async (groupId: string, text: string) => {
-    if (!clientState.socket) {
-      throw new Error('WhatsApp socket is not connected');
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      if (!clientState.socket) {
+        throw new Error('WhatsApp socket is not connected');
+      }
+      try {
+        return await clientState.socket.sendMessage(groupId, { text });
+      } catch (err) {
+        if (attempt < maxRetries) {
+          const delay = attempt * 2000;
+          logger.warn(`sendMessage attempt ${attempt}/${maxRetries} failed, retrying in ${delay}ms...`);
+          await new Promise((r) => setTimeout(r, delay));
+        } else {
+          throw err;
+        }
+      }
     }
-    return clientState.socket.sendMessage(groupId, { text });
   };
 
   return { socket, sendMessage };
