@@ -29,6 +29,17 @@ export async function createWhatsAppClient(
   const sessionPath = path.resolve(config.whatsapp.sessionDataPath);
   fs.mkdirSync(sessionPath, { recursive: true });
 
+  // Clear stale device-list and app-state-sync cache to avoid persistent sync errors
+  const staleFiles = fs.readdirSync(sessionPath).filter(
+    (f) => f.startsWith('device-list-') || f.startsWith('app-state-sync-version-')
+  );
+  if (staleFiles.length > 0) {
+    for (const file of staleFiles) {
+      fs.unlinkSync(path.join(sessionPath, file));
+    }
+    logger.info(`Cleared ${staleFiles.length} stale session cache files`);
+  }
+
   const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
   const socket = makeWASocket({
