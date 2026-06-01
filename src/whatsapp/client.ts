@@ -19,6 +19,9 @@ export interface WhatsAppClient {
   sendMessage: (groupId: string, text: string) => Promise<WAMessage | undefined>;
 }
 
+// Mutable holder so reconnects update the socket used by sendMessage
+const clientState: { socket: WASocket | null } = { socket: null };
+
 export async function createWhatsAppClient(
   config: AppConfig,
   db: Database.Database
@@ -31,6 +34,8 @@ export async function createWhatsAppClient(
   const socket = makeWASocket({
     auth: state,
   });
+
+  clientState.socket = socket;
 
   socket.ev.on('creds.update', saveCreds);
 
@@ -66,7 +71,10 @@ export async function createWhatsAppClient(
   });
 
   const sendMessage = async (groupId: string, text: string) => {
-    return socket.sendMessage(groupId, { text });
+    if (!clientState.socket) {
+      throw new Error('WhatsApp socket is not connected');
+    }
+    return clientState.socket.sendMessage(groupId, { text });
   };
 
   return { socket, sendMessage };
