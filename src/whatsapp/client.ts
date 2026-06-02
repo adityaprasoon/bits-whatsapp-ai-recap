@@ -81,6 +81,8 @@ export async function createWhatsAppClient(
     handleIncomingMessage(db, config, m);
   });
 
+  const DISCLAIMER = '\n\n_AI generated content may be inaccurate. Make sure to verify all information._';
+
   const sendMessage = async (groupId: string, text: string) => {
     const maxRetries = 3;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -88,7 +90,7 @@ export async function createWhatsAppClient(
         throw new Error('WhatsApp socket is not connected');
       }
       try {
-        return await clientState.socket.sendMessage(groupId, { text });
+        return await clientState.socket.sendMessage(groupId, { text: text + DISCLAIMER });
       } catch (err) {
         if (attempt < maxRetries) {
           const delay = attempt * 2000;

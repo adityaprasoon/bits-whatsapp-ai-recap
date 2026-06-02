@@ -1,6 +1,8 @@
 services:
   whatsapp-recap:
     image: ghcr.io/adityaprasoon/bits-whatsapp-ai-recap:latest
+    environment:
+      - TZ=Asia/Kolkata
     ports:
       - "3000:3000"
     volumes:
