@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { proto } from 'baileys';
+import { proto, WASocket } from 'baileys';
 import { AppConfig } from '../config/loader.js';
 import { insertMessage, upsertGroup } from '../db/queries.js';
 import { logger } from '../utils/logger.js';
@@ -12,7 +12,8 @@ interface MessageUpsert {
 export function handleIncomingMessage(
   db: Database.Database,
   config: AppConfig,
-  upsert: MessageUpsert
+  upsert: MessageUpsert,
+  socket?: WASocket
 ): void {
   for (const msg of upsert.messages) {
     const key = msg.key;
@@ -51,8 +52,17 @@ export function handleIncomingMessage(
       text,
     });
 
-    // Update group record
-    upsertGroup(db, remoteJid, remoteJid); // name will be updated when group metadata is fetched
+    // Update group record with real name from WhatsApp metadata
+    if (socket) {
+      socket.groupMetadata(remoteJid).then((meta) => {
+        upsertGroup(db, remoteJid, meta.subject);
+      }).catch(() => {
+        // Fallback: only insert if group doesn't exist yet, don't overwrite existing name
+        upsertGroup(db, remoteJid, remoteJid);
+      });
+    } else {
+      upsertGroup(db, remoteJid, remoteJid);
+    }
 
     logger.debug(`Stored message ${messageId} from ${senderName || senderId} in ${remoteJid}`);
   }

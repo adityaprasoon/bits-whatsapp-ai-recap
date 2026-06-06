@@ -78,7 +78,7 @@ export async function createWhatsAppClient(
   });
 
   socket.ev.on('messages.upsert', (m) => {
-    handleIncomingMessage(db, config, m);
+    handleIncomingMessage(db, config, m, socket);
   });
 
   const DISCLAIMER = '\n\n_AI generated content may be inaccurate. Make sure to verify all information._';
@@ -115,6 +115,20 @@ async function fetchAndStoreGroups(socket: WASocket, db: Database.Database): Pro
       count++;
     }
     logger.info(`Fetched and stored ${count} groups from WhatsApp`);
+
+    // Fix any existing groups that have JID as name (from earlier bug)
+    const existingGroups = db.prepare('SELECT id, name FROM groups').all() as Array<{ id: string; name: string }>;
+    for (const g of existingGroups) {
+      if (g.name === g.id && !(g.id in groups)) {
+        try {
+          const meta = await socket.groupMetadata(g.id);
+          upsertGroup(db, g.id, meta.subject);
+          logger.info(`Fixed group name for ${g.id}: ${meta.subject}`);
+        } catch {
+          logger.warn(`Could not fetch metadata for group ${g.id}`);
+        }
+      }
+    }
   } catch (err) {
     logger.error('Failed to fetch groups from WhatsApp', err);
   }
